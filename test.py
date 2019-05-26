@@ -20,7 +20,7 @@ triggerSwitch = False   # if true, keyborad simulator works
 
 camera = cv2.VideoCapture(-1)
 camera.set(10, 200)  # Brightness
-
+"""
 while True:
     _, frame = camera.read()
     frame = cv2.flip(frame, 1)  # flip the frame horizontally
@@ -30,3 +30,18 @@ while True:
     if cv2.waitKey(100) & 0xFF == ord('q'):
         cv2.destroyAllWindows()
         break
+"""
+fgbg = cv2.createBackgroundSubtractorMOG2()
+
+while(1):
+    ret, frame = camera.read()
+
+    fgmask = fgbg.apply(frame)
+
+    cv2.imshow('frame',fgmask)
+    k = cv2.waitKey(30) & 0xff
+    if k == 27:
+        break
+
+camera.release()
+cv2.destroyAllWindows()

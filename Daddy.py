@@ -7,8 +7,8 @@ from sklearn.metrics import pairwise
 # Parameters Defines
 IOR_X = 0.5  # start point/total width
 IOR_Y = 0.8    # start point/total width
-threshold = 60          # BINARY threshold
-blurValue = 41          # GaussianBlur parameter
+threshold = 20          # BINARY threshold
+blurValue = 11          # GaussianBlur parameter
 bgSubThreshold = 50
 learningRate = 0
 BLUE = (255, 0, 0)
@@ -17,6 +17,7 @@ bgModel = None
 # Flag Variables
 triggerSwitch = False   # if true, keyborad simulator works
 isBgCaptured = False
+
 
 def count(thresholded, segmented):
     """To count the number of fingers in the segmented hand region"""
@@ -84,9 +85,8 @@ def printThreshold(thr):
 def removeBG(frame):
     global bgModel
     fgmask = bgModel.apply(frame, learningRate=learningRate)
-    # kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    # res = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel)
-
+    #kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    #res = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel)
     kernel = np.ones((3, 3), np.uint8)
     fgmask = cv2.erode(fgmask, kernel, iterations=1)
     res = cv2.bitwise_and(frame, frame, mask=fgmask)
@@ -135,42 +135,41 @@ def read_key():
     return result
 
 
+def image_process(frame):
+    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    frame_blur = cv2.GaussianBlur(frame_gray, (blurValue, blurValue), 0)
+    frame_fil = cv2.bilateralFilter(frame_blur, 5, 50, 100)  # Smoothing Filter
+    return frame_fil
+
+
 if __name__ == "__main__":
 
     # Camera
     camera = cv2.VideoCapture(-1)
     camera.set(10, 200)            # Brightness
-    cv2.namedWindow('trackbar')
-    cv2.createTrackbar('trh1', 'trackbar', threshold, 100, printThreshold)
     _, frame = camera.read()
     [F_Y, F_X] = [frame.shape[0], frame.shape[1]]                               # Load Resolution
 
     while camera.isOpened():
         _, frame = camera.read()
-        threshold = cv2.getTrackbarPos('trh1', 'trackbar')                      # Update Threshold
-        frame = cv2.bilateralFilter(frame, 5, 50, 100)                          # Smoothing Filter
-        frame = cv2.flip(frame, 1)                                              # Cancel Mirror
+        frame = cv2.flip(frame, 1)        # Cancel Mirror
         cv2.rectangle(frame, pt1=(int(IOR_X * F_X), 0),
                       pt2=(frame.shape[1], int(IOR_Y * F_Y)),
-                      color=BLUE, thickness=2)                                  # IOR
+                      color=BLUE, thickness=2)  # IOR
         cv2.imshow('Original', frame)
+        frame_process = image_process()
 
         if isBgCaptured == 1:
-            img = removeBG(frame)
-            img = img[0:int(IOR_Y * F_Y),
+            frame_IOR = frame_process[0:int(IOR_Y * F_Y),
                         int(IOR_X * F_X):F_X]  # clip the ROI
-            cv2.imshow('IOR', img)
-
+            frame_IOR_removeBG = removeBG(frame_IOR)
             # convert the image into binary image
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            blur = cv2.GaussianBlur(gray, (blurValue, blurValue), 0)
-            cv2.imshow('blur', blur)
-            _, thresh = cv2.threshold(blur, threshold, 255, cv2.THRESH_BINARY)
-            cv2.imshow('ori', thresh)
+            _, frame_IOR_thre = cv2.threshold(frame_IOR_removeBG, threshold, 255, cv2.THRESH_BINARY)
+            cv2.imshow('removeBG threshold', frame_IOR_thre)
 
 
             # get the coutours
-            thresh1 = copy.deepcopy(thresh)
+            thresh1 = copy.deepcopy(frame_IOR_thre)
             _, contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             length = len(contours)
             maxArea = -1
@@ -184,7 +183,7 @@ if __name__ == "__main__":
 
                 res = contours[ci]
                 hull = cv2.convexHull(res)
-                drawing = np.zeros(img.shape, np.uint8)
+                drawing = np.zeros(frame_IOR.shape, np.uint8)
                 cv2.drawContours(drawing, [res], 0, (0, 255, 0), 2)
                 cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 3)
 
