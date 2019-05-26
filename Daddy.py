@@ -7,15 +7,13 @@ import math
 # Parameters Defines
 IOR_X = 0.5  # start point/total width
 IOR_Y = 0.8    # start point/total width
-threshold = 20          # BINARY threshold
-blurValue = 11          # GaussianBlur parameter
-bgSubThreshold = 50
-learningRate = 0
+BLUE_THRESHOLD = 11          # GaussianBlur parameter
+BACKGROUND_THRESHOLD = 50
+LEARNING_RATE = 0
 BLUE = (255, 0, 0)
 bgModel = None
 
 # Flag Variables
-triggerSwitch = False   # if true, keyborad simulator works
 isBgCaptured = False
 
 
@@ -26,7 +24,7 @@ def printThreshold(thr):
 
 def removeBG(frame):
     global bgModel
-    fgmask = bgModel.apply(frame, learningRate=learningRate)
+    fgmask = bgModel.apply(frame, learningRate=LEARNING_RATE)
     kernel = np.ones((3, 3), np.uint8)
     fgmask = cv2.erode(fgmask, kernel, iterations=1)
     img = cv2.bitwise_and(frame, frame, mask=fgmask)
@@ -57,7 +55,7 @@ def calculateFingers(res,drawing):  # -> finished bool, cnt: finger count
 
 
 def read_key():
-    global isBgCaptured, triggerSwitch, bgModel
+    global isBgCaptured, bgModel
     k = cv2.waitKey(10)
     result = ""
     if k == 27:  # press ESC to exit
@@ -65,19 +63,16 @@ def read_key():
         cv2.destroyAllWindows()
         result = "break"
     elif k == ord('b'):  # press 'b' to capture the background
-        bgModel = cv2.createBackgroundSubtractorMOG2(0, bgSubThreshold)
+        bgModel = cv2.createBackgroundSubtractorMOG2(0, BACKGROUND_THRESHOLD)
         isBgCaptured = 1
         print('!!!Background Captured!!!')
-    elif k == ord('n'):
-        triggerSwitch = True
-        print('!!!Trigger On!!!')
 
     return result
 
 
 def image_filter(frame):
     frame_gray = frame
-    frame_blur = cv2.GaussianBlur(frame_gray, (blurValue, blurValue), 0)
+    frame_blur = cv2.GaussianBlur(frame_gray, (BLUE_THRESHOLD, BLUE_THRESHOLD), 0)
     frame_fil = cv2.bilateralFilter(frame_blur, 5, 50, 100)  # Smoothing Filter
     return frame_fil
 
@@ -111,6 +106,7 @@ def print_convex(frame_IOR_thre):
         cv2.drawContours(drawing, [res], 0, (0, 255, 0), 2)
         cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 3)
         cv2.imshow('output', drawing)
+    return res, drawing
 
 
 if __name__ == "__main__":
@@ -127,6 +123,6 @@ if __name__ == "__main__":
             frame_IOR = frame_process[0:int(IOR_Y * F_Y), int(IOR_X * F_X):F_X]  # Find ROI
             frame_IOR_thre = removeBG(frame_IOR)                                 # Remove Background
             cv2.imshow('RemoveBG Threshold', frame_IOR_thre)
-            print_convex(frame_IOR_thre)                                         # Get and Print Convex
-
+            res, drawing = print_convex(frame_IOR_thre)                                         # Get and Print Convex
+            calculateFingers(res, drawing)
         read_key()                                                               # Read input
