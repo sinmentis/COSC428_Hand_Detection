@@ -17,11 +17,6 @@ bgModel = None
 isBgCaptured = False
 
 
-def printThreshold(thr):
-    """Print out Threshold"""
-    print("! Changed threshold to "+str(thr))
-
-
 def removeBG(frame):
     global bgModel
     fgmask = bgModel.apply(frame, learningRate=LEARNING_RATE)
@@ -32,12 +27,11 @@ def removeBG(frame):
     return hsv
 
 
-def calculateFingers(res,drawing):  # -> finished bool, cnt: finger count
-    #  convexity defect
+def calculateFingers(res, drawing):
     hull = cv2.convexHull(res, returnPoints=False)
     if len(hull) > 3:
         defects = cv2.convexityDefects(res, hull)
-        if type(defects) != type(None):  # avoid crashing.   (BUG not found)
+        if defects:
             cnt = 0
             for i in range(defects.shape[0]):  # calculate the angle
                 s, e, f, d = defects[i][0]
@@ -57,17 +51,14 @@ def calculateFingers(res,drawing):  # -> finished bool, cnt: finger count
 def read_key():
     global isBgCaptured, bgModel
     k = cv2.waitKey(10)
-    result = ""
     if k == 27:  # press ESC to exit
         camera.release()
         cv2.destroyAllWindows()
-        result = "break"
+        exit(0)
     elif k == ord('b'):  # press 'b' to capture the background
         bgModel = cv2.createBackgroundSubtractorMOG2(0, BACKGROUND_THRESHOLD)
         isBgCaptured = 1
         print('!!!Background Captured!!!')
-
-    return result
 
 
 def image_filter(frame):
@@ -92,25 +83,25 @@ def print_convex(frame_IOR_thre):
     skinMask1 = copy.deepcopy(frame_IOR_thre)
     _, contours, _ = cv2.findContours(skinMask1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     length = len(contours)
-    maxArea = -1
+    max_area = -1
     if length > 0:
         for i in range(length):
             temp = contours[i]
             area = cv2.contourArea(temp)
-            if area > maxArea:
-                maxArea = area
+            if area > max_area:
+                max_area = area
                 ci = i
-        res = contours[ci]
-        hull = cv2.convexHull(res)
+        max_contours = contours[ci]
+        hull = cv2.convexHull(max_contours)
         drawing = np.zeros(frame_IOR_thre.shape, np.uint8)
-        cv2.drawContours(drawing, [res], 0, (0, 255, 0), 2)
+        cv2.drawContours(drawing, [max_contours], 0, (0, 255, 0), 2)
         cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 3)
         cv2.imshow('output', drawing)
-    return res, drawing
+        return max_contours, drawing
+    return None, None
 
 
 if __name__ == "__main__":
-    # Camera
     camera = cv2.VideoCapture(-1)
     camera.set(10, 200)            # Brightness
     _, frame = camera.read()
@@ -123,6 +114,7 @@ if __name__ == "__main__":
             frame_IOR = frame_process[0:int(IOR_Y * F_Y), int(IOR_X * F_X):F_X]  # Find ROI
             frame_IOR_thre = removeBG(frame_IOR)                                 # Remove Background
             cv2.imshow('RemoveBG Threshold', frame_IOR_thre)
-            res, drawing = print_convex(frame_IOR_thre)                                         # Get and Print Convex
-            calculateFingers(res, drawing)
+            res, drawing = print_convex(frame_IOR_thre)                          # Get and Print Convex
+            if res and drawing:
+                calculateFingers(res, drawing)                                   # Count the Finger
         read_key()                                                               # Read input
