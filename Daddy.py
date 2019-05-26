@@ -85,12 +85,11 @@ def printThreshold(thr):
 def removeBG(frame):
     global bgModel
     fgmask = bgModel.apply(frame, learningRate=learningRate)
-    #kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    #res = cv2.morphologyEx(fgmask, cv2.MORPH_OPEN, kernel)
     kernel = np.ones((3, 3), np.uint8)
     fgmask = cv2.erode(fgmask, kernel, iterations=1)
-    res = cv2.bitwise_and(frame, frame, mask=fgmask)
-    return res
+    img = cv2.bitwise_and(frame, frame, mask=fgmask)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    return hsv
 
 
 def calculateFingers(res,drawing):  # -> finished bool, cnt: finger count
@@ -135,8 +134,9 @@ def read_key():
     return result
 
 
-def image_process(frame):
-    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+def image_filter(frame):
+    frame_gray = frame
+    #frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     frame_blur = cv2.GaussianBlur(frame_gray, (blurValue, blurValue), 0)
     frame_fil = cv2.bilateralFilter(frame_blur, 5, 50, 100)  # Smoothing Filter
     return frame_fil
@@ -157,24 +157,20 @@ if __name__ == "__main__":
                       pt2=(frame.shape[1], int(IOR_Y * F_Y)),
                       color=BLUE, thickness=2)  # IOR
         cv2.imshow('Original', frame)
-        frame_process = image_process()
+        frame_process = image_filter(frame)
 
         if isBgCaptured == 1:
-            frame_IOR = frame_process[0:int(IOR_Y * F_Y),
-                        int(IOR_X * F_X):F_X]  # clip the ROI
-            frame_IOR_removeBG = removeBG(frame_IOR)
-            # convert the image into binary image
-            _, frame_IOR_thre = cv2.threshold(frame_IOR_removeBG, threshold, 255, cv2.THRESH_BINARY)
+            frame_IOR = frame_process[0:int(IOR_Y * F_Y), int(IOR_X * F_X):F_X]  # clip the ROI
+            frame_IOR_thre = removeBG(frame_IOR)
             cv2.imshow('removeBG threshold', frame_IOR_thre)
-
-
-            # get the coutours
-            thresh1 = copy.deepcopy(frame_IOR_thre)
-            _, contours, hierarchy = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            """"""
+            # Getting the contours and convex hull
+            skinMask1 = copy.deepcopy(frame_IOR_thre)
+            _, contours, hierarchy = cv2.findContours(skinMask1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             length = len(contours)
             maxArea = -1
             if length > 0:
-                for i in range(length):  # find the biggest contour (according to area)
+                for i in range(length):
                     temp = contours[i]
                     area = cv2.contourArea(temp)
                     if area > maxArea:
@@ -187,13 +183,9 @@ if __name__ == "__main__":
                 cv2.drawContours(drawing, [res], 0, (0, 255, 0), 2)
                 cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 3)
 
-                isFinishCal, cnt = calculateFingers(res,drawing)
-                if triggerSwitch is True:
-                    if isFinishCal is True and cnt <= 2:
-                        print(cnt)
-
-
-            cv2.imshow('output', drawing)
+                isFinishCal, cnt = calculateFingers(res, drawing)
+                print("Fingers", cnt)
+                cv2.imshow('output', drawing)
 
         # Keyboard OP
         read_key()
