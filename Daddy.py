@@ -9,6 +9,7 @@ IOR_X = 0.5  # start point/total width
 IOR_Y = 0.8    # start point/total width
 BLUE_THRESHOLD = 11          # GaussianBlur parameter
 BACKGROUND_THRESHOLD = 50
+THRESHOLD = 60
 LEARNING_RATE = 0
 BLUE = (255, 0, 0)
 bgModel = None
@@ -18,20 +19,18 @@ isBgCaptured = False
 
 
 def removeBG(frame):
-    global bgModel
     fgmask = bgModel.apply(frame, learningRate=LEARNING_RATE)
     kernel = np.ones((3, 3), np.uint8)
     fgmask = cv2.erode(fgmask, kernel, iterations=1)
     img = cv2.bitwise_and(frame, frame, mask=fgmask)
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    return hsv
+    return img
 
 
 def calculateFingers(res, drawing):
     hull = cv2.convexHull(res, returnPoints=False)
     if len(hull) > 3:
         defects = cv2.convexityDefects(res, hull)
-        if defects:
+        if type(defects) != type(None):
             cnt = 0
             for i in range(defects.shape[0]):  # calculate the angle
                 s, e, f, d = defects[i][0]
@@ -54,18 +53,10 @@ def read_key():
     if k == 27:  # press ESC to exit
         camera.release()
         cv2.destroyAllWindows()
-        exit(0)
     elif k == ord('b'):  # press 'b' to capture the background
         bgModel = cv2.createBackgroundSubtractorMOG2(0, BACKGROUND_THRESHOLD)
         isBgCaptured = 1
         print('!!!Background Captured!!!')
-
-
-def image_filter(frame):
-    frame_gray = frame
-    frame_blur = cv2.GaussianBlur(frame_gray, (BLUE_THRESHOLD, BLUE_THRESHOLD), 0)
-    frame_fil = cv2.bilateralFilter(frame_blur, 5, 50, 100)  # Smoothing Filter
-    return frame_fil
 
 
 def get_frame(camera):
@@ -79,27 +70,14 @@ def get_frame(camera):
     return frame
 
 
-def print_convex(frame_IOR_thre):
-    skinMask1 = copy.deepcopy(frame_IOR_thre)
-    _, contours, _ = cv2.findContours(skinMask1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    length = len(contours)
-    max_area = -1
-    if length > 0:
-        for i in range(length):
-            temp = contours[i]
-            area = cv2.contourArea(temp)
-            if area > max_area:
-                max_area = area
-                ci = i
-        max_contours = contours[ci]
-        hull = cv2.convexHull(max_contours)
-        drawing = np.zeros(frame_IOR_thre.shape, np.uint8)
-        cv2.drawContours(drawing, [max_contours], 0, (0, 255, 0), 2)
-        cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 3)
-        cv2.imshow('output', drawing)
-        return max_contours, drawing
-    return None, None
-
+def frame_process(frame_BG):
+    frame_IOR = frame_BG[0:int(IOR_Y * F_Y), int(IOR_X * F_X):F_X]  # Find ROI
+    frame_gray = cv2.cvtColor(frame_IOR, cv2.COLOR_BGR2GRAY)
+    frame_blur = cv2.GaussianBlur(frame_gray, (BLUE_THRESHOLD, BLUE_THRESHOLD), 0)
+    frame_fil = cv2.bilateralFilter(frame_blur, 5, 50, 100)  # Smoothing Filter
+    ret, thresh = cv2.threshold(frame_fil, THRESHOLD, 255, cv2.THRESH_BINARY)
+    cv2.imshow('ori', thresh)
+    return thresh, frame_IOR
 
 if __name__ == "__main__":
     camera = cv2.VideoCapture(-1)
@@ -109,12 +87,28 @@ if __name__ == "__main__":
 
     while camera.isOpened():
         frame = get_frame(camera)                                                # Init and Read frame
-        frame_process = image_filter(frame)                                      # Process the frame
         if isBgCaptured == 1:
-            frame_IOR = frame_process[0:int(IOR_Y * F_Y), int(IOR_X * F_X):F_X]  # Find ROI
-            frame_IOR_thre = removeBG(frame_IOR)                                 # Remove Background
-            cv2.imshow('RemoveBG Threshold', frame_IOR_thre)
-            res, drawing = print_convex(frame_IOR_thre)                          # Get and Print Convex
-            if res and drawing:
-                calculateFingers(res, drawing)                                   # Count the Finger
-        read_key()                                                               # Read input
+            frame_BG = removeBG(frame)                                 # Remove Background
+            frame_thresh, frame_IOR = frame_process(frame_BG)
+
+            d# get the coutours
+            thresh1 = copy.deepcopy(frame_thresh)
+            _, contours, _ = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            length = len(contours)
+            maxArea = -1
+            if length > 0:
+                for i in range(length):  # find the biggest contour (according to area)
+                    temp = contours[i]
+                    area = cv2.contourArea(temp)
+                    if area > maxArea:
+                        maxArea = area
+                        ci = i
+                res = contours[ci]
+                hull = cv2.convexHull(res)
+                drawing = np.zeros(frame_IOR.shape, np.uint8)
+                cv2.drawContours(drawing, [res], 0, (0, 255, 0), 2)
+                cv2.drawContours(drawing, [hull], 0, (0, 0, 255), 3)
+                calculateFingers(res, drawing)
+            cv2.imshow('output', drawing)
+
+        read_key()
