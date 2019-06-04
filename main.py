@@ -91,7 +91,7 @@ if __name__ == "__main__":
             frame_BG = removeBG(frame)                                 # Remove Background
             frame_thresh, frame_IOR = frame_process(frame_BG)
 
-            d# get the coutours
+            # get the coutours
             thresh1 = copy.deepcopy(frame_thresh)
             _, contours, _ = cv2.findContours(thresh1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             length = len(contours)
