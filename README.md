@@ -10,7 +10,7 @@ Code structure:
 	frame_process(frame_BG)				# Apply filter and threshold
 
 How to Run the Code:
-	1. run main.py
-	2. Press b to trigger the background subtraction
-	3. Make sure no hand in the frame when press b
-	4. Esc to quit the program
+1. run main.py
+2. Press b to trigger the background subtraction
+3. Make sure no hand in the frame when press b
+4. Esc to quit the program
